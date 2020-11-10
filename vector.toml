@@ -1,0 +1,52 @@
+## -----------------------------------------------------------------------------
+## -- Global config
+
+data_dir = "/var/lib/vector"
+
+## -----------------------------------------------------------------------------
+## -- Sources
+
+# Incoming logs from Fastly. These are streamed directly in real time over
+# syslog (RFC 5424) with payloads in JSON format.
+[sources.fastly_source_logs]
+  type = "syslog"
+  mode = "tcp"
+  address = "0.0.0.0:514"
+
+## -----------------------------------------------------------------------------
+## -- Transformations
+
+## -- Fastly source transformations
+
+# First, remove a bunch of unneeded fields, partially from syslog and partially
+# from vector, from the object. The only remaining field in the message object
+# should be "message".
+[transforms.fastly_clean_logs]
+  inputs = ["fastly_source_logs"]
+  type = "remove_fields"
+  fields = [ "version", "facility", "source_type", "source_ip", "procid", "host" ]
+
+# Finally, use json_parser to 'promote' the message field into the actual message
+# object itself. These are the canonical logs we use here on out.
+#[transforms.fastly_logs]
+#  inputs = ["fastly_clean_logs"]
+#  type = "json_parser"
+#  field = "message"
+
+## -----------------------------------------------------------------------------
+## -- Sinks
+
+## -- Global sinks
+
+# A blackhole sink that ALL metrics and logs are submitted to. Why? This is an
+# easy way to put occasional nice status updates in log about how much work has
+# done at a glance.
+[sinks.blackhole]
+  type = "blackhole"
+  print_amount = 500
+  inputs = [ "fastly_clean_logs" ]
+
+[sinks.debug_out_fastly]
+  type = "console"
+  inputs = [ "fastly_clean_logs" ]
+  encoding = "json"
